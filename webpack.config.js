@@ -1,4 +1,5 @@
 const path = require( 'path' );
+const webpack = require( 'webpack' );
 
 module.exports = {
   module: {
@@ -10,11 +11,16 @@ module.exports = {
       }]
     }]
   },
+  plugins: [
+    new webpack.NamedModulesPlugin(),
+    new webpack.HotModuleReplacementPlugin()
+  ],
   entry: { bundle: path.join( __dirname, 'index.js' ) },
   output: {
     path: path.join( __dirname, 'public' )
   },
   devServer: {
-    contentBase: path.join( __dirname, 'public' )
+    contentBase: path.join( __dirname, 'public' ),
+    hot: true
   }
 }
