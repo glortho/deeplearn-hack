@@ -17,6 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@mapbox/tilebelt": "^1.0.1",
     "babel-cli": "^6.26.0",
     "babel-loader": "^7.1.2",
     "babel-preset-es2015": "^6.24.1",
@@ -24,11 +25,14 @@
     "babel-preset-stage-0": "^6.24.1",
     "deeplearn": "^0.3.2",
     "iso-fetch-stream": "^0.1.4",
+    "leaflet": "^1.2.0",
+    "leaflet-draw": "^0.4.12",
     "ndarray": "^1.0.18",
     "react": "^16.0.0",
     "react-dom": "^16.0.0",
     "react-leaflet": "^1.7.1",
     "react-leaflet-draw": "^0.16.0",
+    "sphericalmercator": "^1.0.5",
     "tilebelt": "^1.0.1",
     "webpack": "^3.8.1",
     "webpack-dev-server": "^2.9.2"
