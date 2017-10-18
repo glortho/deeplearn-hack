@@ -1,4 +1,4 @@
-import { FeatureGroup, Map as LeafletMap } from 'react-leaflet';
+import { FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 
@@ -36,6 +36,10 @@ export default class Map extends React.Component {
     return (
       <div>
         <LeafletMap ref="map" { ...this.mapOptions }>
+          <TileLayer
+            url="https://{s}.tiles.mapbox.com/v4/mapbox.streets-satellite/{z}/{x}/{y}@2x.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ"
+            attribution = "&copy; Mapbox | &copy; DigitalGlobe"
+          />
           <FeatureGroup>
             <EditControl
               position='topleft'
