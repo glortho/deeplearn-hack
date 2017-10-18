@@ -2,6 +2,8 @@ import { FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 
+import model from './model';
+
 export default class Map extends React.Component {
 
   mapOptions = {
