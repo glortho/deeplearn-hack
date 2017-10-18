@@ -2,6 +2,7 @@ import { FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 
+import db from './db';
 import model from './model';
 
 export default class Map extends React.Component {
@@ -26,7 +27,9 @@ export default class Map extends React.Component {
   componentWillMount() {
     let link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "//cdnjs.cloudflare.com/ajax/libs/leaflet/1.2.0/leaflet.css";
+    link.href = "//unpkg.com/leaflet@1.2.0/dist/leaflet.css";
+    link.integrity = 'sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ==';
+    link.crossOrigin = '';
     document.getElementsByTagName("head")[0].appendChild(link);
 
     link = document.createElement("link");
@@ -37,6 +40,7 @@ export default class Map extends React.Component {
 
   train = event => {
     console.log( event );
+    // db.setItem()
     // model.train()
   }
 
