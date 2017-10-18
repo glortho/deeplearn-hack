@@ -10,6 +10,7 @@ const merc = new SphericalMercator({
 });
 
 import model, { train } from './model';
+import db from './db';
 
 export default class Map extends React.Component {
 
@@ -79,9 +80,29 @@ export default class Map extends React.Component {
     fill: false
 
   }
+<<<<<<< HEAD
 
   train = event => {
     this.fetch( event.layer._bounds.toBBoxString().split(',').map( c => parseFloat(c) ) );
+=======
+  componentWillMount() {
+    let link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "//unpkg.com/leaflet@1.2.0/dist/leaflet.css";
+    link.integrity = 'sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ==';
+    link.crossOrigin = '';
+    document.getElementsByTagName("head")[0].appendChild(link);
+
+    link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "//cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.12/leaflet.draw.css";
+    document.getElementsByTagName("head")[0].appendChild(link);
+  }
+
+  train = event => {
+    console.log( event );
+    // db.setItem()
+>>>>>>> 9a8ce65ca9c6ce06d3ee49fe59df08bac4a32ca9
     // model.train()
   }
 
