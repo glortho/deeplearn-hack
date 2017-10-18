@@ -24,6 +24,8 @@
     "babel-preset-stage-0": "^6.24.1",
     "deeplearn": "^0.3.2",
     "iso-fetch-stream": "^0.1.4",
+    "leaflet": "^1.2.0",
+    "leaflet-draw": "^0.4.12",
     "react": "^16.0.0",
     "react-dom": "^16.0.0",
     "react-leaflet": "^1.7.1",
