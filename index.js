@@ -1,3 +1,8 @@
-import run from './demo';
+import React from 'react';
+import ReactDOM from 'react-dom';
 
-run();
+import Map from './map';
+
+const mountPoint = document.getElementById( 'app' );
+
+ReactDOM.render( <Map/>, mountPoint );
