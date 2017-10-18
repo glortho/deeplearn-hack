@@ -34,6 +34,12 @@ export default class Map extends React.Component {
     link.href = "//cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.12/leaflet.draw.css";
     document.getElementsByTagName("head")[0].appendChild(link);
   }
+
+  train = event => {
+    console.log( event );
+    // model.train()
+  }
+
   render() {
     return (
       <div>
@@ -45,6 +51,7 @@ export default class Map extends React.Component {
           <FeatureGroup>
             <EditControl
               position='topleft'
+              onCreated={ this.train }
               draw={{
                 polyline: false,
                 polygon: this.shapeOptions ,
