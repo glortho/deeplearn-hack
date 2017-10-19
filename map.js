@@ -41,7 +41,7 @@ export default class Map extends React.Component {
   }
 
   fetchImg = ({ bbox, x, y }, label, options) => {
-    const z = 18;
+    const z = 17;
     let url = 'https://a.tiles.mapbox.com/v4/mapbox.streets-satellite/';
     url += `${z}/${x}/${y}.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ`;
     const img = new Image()
@@ -54,7 +54,7 @@ export default class Map extends React.Component {
   }
 
   fetch = ( bbox, label, options ) => {
-    const {minX, minY, maxX, maxY } = merc.xyz(bbox, 18);
+    const {minX, minY, maxX, maxY } = merc.xyz(bbox, 17);
     for ( let x=minX; x < maxX + 1; x++ ) {
       for ( let y=minY; y < maxY + 1; y++ ) {
         this.fetchImg({ bbox, x, y }, label, options);
@@ -88,7 +88,7 @@ export default class Map extends React.Component {
   removeTrainingData = event => {
     event.layers.getLayers().forEach( layer => {
       const bbox = this.getBbox( layer );
-      const {minX, minY, maxX, maxY } = merc.xyz(bbox, 18);
+      const {minX, minY, maxX, maxY } = merc.xyz(bbox, 17);
       for ( let x=minX; x < maxX + 1; x++ ) {
         for ( let y=minY; y < maxY + 1; y++ ) {
           removeTraining({ bbox, x, y });

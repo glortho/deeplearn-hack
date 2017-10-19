@@ -1,6 +1,9 @@
 import ndarray from 'ndarray';
 import SphericalMercator from 'sphericalmercator';
 import unpack from 'ndarray-unpack';
+import imshow from 'ndarray-imshow';
+
+import { SqueezeNet } from './squeezenet';
 
 const merc = new SphericalMercator({
   size: 256
@@ -12,6 +15,7 @@ import {
   addTraining as addTrainingToDb,
   clear as clearDb
 } from './db';
+
 
 class Model {
   // Runs training.
@@ -35,7 +39,7 @@ class Model {
   // Maps tensors to InputProviders.
   feedEntries;
 
-  inputSize = 3000;
+  inputSize = 1000;
 
   constructor() {
     this.optimizer = new SGDOptimizer(this.initialLearningRate);
@@ -79,6 +83,11 @@ class Model {
     this.inputArray = [];
     this.targetArray = [];
     //this.generateTrainingData();
+
+    this.squeezeNet = new SqueezeNet(this.math);
+    this.squeezeNet.loadVariables().then(() => {
+      //requestAnimationFrame(() => this.animate());
+    });
   }
 
   unpack_flat = (view) => { 
@@ -171,7 +180,7 @@ class Model {
   addTraining({ bbox, x, y, img, label, options = { addToDb: true } }) {
     this.math.scope(() => {
 
-      const tile_bbox = merc.bbox(x, y, 18);
+      const tile_bbox = merc.bbox(x, y, 17);
       const minXY = this.tilePx(bbox[3], bbox[0], tile_bbox);
       const maxXY = this.tilePx(bbox[1], bbox[2], tile_bbox);
 
@@ -197,7 +206,7 @@ class Model {
         const green = this.unpack_flat(clip.pick(null, null, 1));
         const blue = this.unpack_flat(clip.pick(null, null, 2));
 
-        console.log(red.length)
+        console.log(clip)
 
         this.inputArray.push( 
           Array1D.new( red ), 
@@ -293,6 +302,15 @@ class Model {
     this.inputArray = [];
     this.targetArray = [];
     clearDb();
+  }
+
+  infer(img) {
+    const inferenceResult = this.squeezeNet.infer( img );
+    const namedActivations = inferenceResult.namedActivations;
+    console.log( inferenceResult );
+    const nClasses = 10;
+    const topClassesToProbability = await this.squeezeNet.getTopKClasses(
+      inferenceResult.logits, nClasses);
   }
 }
 
