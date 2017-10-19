@@ -133,7 +133,7 @@ class Model {
    * Generates data used to train. Creates a feed entry that will later be used
    * to pass data into the model. Generates `exampleCount` data points.
    */
-  addTraining( bbox, img, label ) {
+  addTraining( bbox, img, label, options = { addToDb: true }) {
     this.math.scope(() => {
       const _3darr = Array3D.fromPixels(img);
       const canvas = document.createElement('canvas')
@@ -144,9 +144,10 @@ class Model {
       const pixels = context.getImageData(0, 0, img.width, img.height);
       const sliced = Array.from(pixels.data.slice(0, this.inputSize));
 
-      addTrainingToDb( bbox, this.label );
+      if ( options.addToDb ) addTrainingToDb( bbox, label );
+
       this.inputArray.push( Array1D.new( sliced ) );
-      this.targetArray.push( Array1D.new( [ this.label ] ) );
+      this.targetArray.push( Array1D.new( [ label ] ) );
 
       const shuffledInputProviderBuilder =
         new InCPUMemoryShuffledInputProviderBuilder(

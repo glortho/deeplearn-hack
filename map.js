@@ -3,6 +3,7 @@ import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 import api from './lib/api';
 import SphericalMercator from 'sphericalmercator';
+import { getTrainingData } from './db';
 
 const merc = new SphericalMercator({
   size: 256
@@ -26,7 +27,13 @@ export default class Map extends React.Component {
 
   }
 
-  fetch = ( bbox ) => {
+  componentDidMount() {
+    getTrainingData().then( data =>
+      data.forEach((label, bbox) => this.fetch( bbox, label, { addToDb: false } ))
+    );
+  }
+
+  fetch = ( bbox, label = 1.0, options ) => {
     const {minX, minY, maxX, maxY } = merc.xyz(bbox, 18);
     for ( let x=minX; x < maxX + 1; x++ ) {
       for ( let y=minY; y < maxY + 1; y++ ) {
@@ -36,7 +43,7 @@ export default class Map extends React.Component {
         console.log(url)
         const img = new Image()
         img.crossOrigin = "Anonymous"
-        img.onload = () => model.addTraining( bbox, img, 1.0 );
+        img.onload = () => model.addTraining( bbox, img, label, options );
         img.onerror = function(err) {
           console.log('err', err)
         }
