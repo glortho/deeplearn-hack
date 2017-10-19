@@ -1,4 +1,17 @@
-import {Array3D, Array1D, Array2D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor} from 'deeplearn';
+import ndarray from 'ndarray';
+import SphericalMercator from 'sphericalmercator';
+import unpack from 'ndarray-unpack';
+
+const merc = new SphericalMercator({
+  size: 256
+});
+
+import {Array1D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor} from 'deeplearn';
+
+import {
+  addTraining as addTrainingToDb,
+  clear as clearDb
+} from './db';
 
 class Model {
   // Runs training.
@@ -22,7 +35,6 @@ class Model {
   // Maps tensors to InputProviders.
   feedEntries;
 
-  label = 0;
   inputSize = 5000;
 
   constructor() {
@@ -70,6 +82,24 @@ class Model {
     //this.generateTrainingData();
   }
 
+  unpack_flat = (view) => unpack(view)
+    .reduce((master, row) => master.concat( [ ...row ] ), [] );
+
+  tilePx = (lat, lon, tile_bbox) => {
+    const w = 256;
+    const h = 256;
+    const lat0 = tile_bbox[3];
+    const lon0 = tile_bbox[0];
+    const latD = tile_bbox[3] - tile_bbox[1];
+    const lonD = tile_bbox[2] - tile_bbox[0];
+    let longitude = lon;
+    longitude -= lon0;
+    let latitude = lat0 - lat;
+    const x = (w*(longitude/lonD));
+    const y = Math.min(256.0, (h*(latitude/latD)));
+    return [parseInt(Math.max(0,x)), parseInt(Math.max(0,y))];
+  }
+
   /**
    * Trains one batch for one iteration. Call this method multiple times to
    * progressively train. Calling this function transfers data from the GPU in
@@ -79,10 +109,10 @@ class Model {
    * batch. Otherwise, returns -1. We should only retrieve the cost now and then
    * because doing so requires transferring data from the GPU.
    */
-  train1Batch(shouldFetchCost) {
+  train1Batch(shouldFetchCost = false) {
     // Every 42 steps, lower the learning rate by 15%.
     const learningRate =
-        this.initialLearningRate * Math.pow(0.85, Math.floor(model.step / 42));
+        this.initialLearningRate * Math.pow(0.85, Math.floor(this.step / 42));
     this.optimizer.setLearningRate(learningRate);
 
     // Train 1 batch.
@@ -115,7 +145,7 @@ class Model {
       const evalOutput = this.session.eval(this.predictionTensor, mapping);
       console.log(evalOutput.getValues(), Array.prototype.slice.call(evalOutput.getValues()));
       values = evalOutput.getValues();
-      
+
     });
     return values;
   }
@@ -132,23 +162,58 @@ class Model {
    * Generates data used to train. Creates a feed entry that will later be used
    * to pass data into the model. Generates `exampleCount` data points.
    */
-  addTraining( arr, label ) {
+  addTraining({ bbox, x, y, img, label, options = { addToDb: true } }) {
     this.math.scope(() => {
-      this.inputArray.push( Array1D.new( arr ) );
-      console.log('LABEL', this.label)
-      this.targetArray.push( Array1D.new( [ this.label ] ) );
 
-      const shuffledInputProviderBuilder =
+      const tile_bbox = merc.bbox(x, y, 18);
+      const minXY = this.tilePx(bbox[3], bbox[0], tile_bbox);
+      const maxXY = this.tilePx(bbox[1], bbox[2], tile_bbox);
+
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const context = canvas.getContext('2d')
+      context.drawImage(img, 0, 0)
+      const pixels = context.getImageData(0, 0, img.width, img.height);
+
+      const arr = ndarray(new Uint8Array(pixels.data), [img.width, img.height, 4], [4*img.width, 4, 1], 0);
+      if ( (maxXY[1] - minXY[1]) > 0 && ( maxXY[0] - minXY[0] ) > 0 ) {
+        if ( options.addToDb ) addTrainingToDb({ bbox, x, y, label });
+        const miny = minXY[1];
+        const minx = minXY[0];
+        const maxy = maxXY[1];
+        const maxx = maxXY[0];
+        const clip = arr
+          .hi(maxy, maxx)
+          .lo(miny, minx)
+
+        const red = this.unpack_flat(clip.pick(null, null, 0));
+        const green = this.unpack_flat(clip.pick(null, null, 1));
+        const blue = this.unpack_flat(clip.pick(null, null, 2));
+
+        this.inputArray.push( 
+          Array1D.new( red ), 
+          Array1D.new( green ),
+          Array1D.new( blue ) 
+        );
+        this.targetArray.push( 
+          Array1D.new( [ label ] ), 
+          Array1D.new( [ label ] ),
+          Array1D.new( [ label ] ) 
+        );
+
+        const shuffledInputProviderBuilder =
           new InCPUMemoryShuffledInputProviderBuilder(
-              [this.inputArray, this.targetArray]);
-      const [inputProvider, targetProvider] =
+            [this.inputArray, this.targetArray]);
+        const [inputProvider, targetProvider] =
           shuffledInputProviderBuilder.getInputProviders();
 
-      // Maps tensors to InputProviders.
-      this.feedEntries = [
-        {tensor: this.inputTensor, data: inputProvider},
-        {tensor: this.targetTensor, data: targetProvider}
-      ];
+        // Maps tensors to InputProviders.
+        this.feedEntries = [
+          {tensor: this.inputTensor, data: inputProvider},
+          {tensor: this.targetTensor, data: targetProvider}
+        ];
+      }
     });
 
   }
@@ -187,34 +252,43 @@ class Model {
       ];
     });
   }
+
+  trainLoop = () => {
+    if (this.step > 50) {
+      // Stop training.
+      return;
+    }
+
+    // Schedule the next batch to be trained.
+    requestAnimationFrame(this.trainLoop);
+
+    // We only fetch the cost every 5 steps because doing so requires a transfer
+    // of data from the GPU.
+    const localStepsToRun = 5;
+    let cost;
+    for (let i = 0; i < localStepsToRun; i++) {
+      //cost = model.train1Batch(i === localStepsToRun - 1);
+      cost = model.train1Batch(this.step, i === localStepsToRun - 1);
+      this.step++;
+    }
+
+    // Print data to console so the user can inspect.
+    console.log('step', this.step - 1, 'cost', cost);
+  }
+
+  train() {
+    this.step = 0;
+    this.trainLoop();
+  }
+
+  clear() {
+    this.inputArray = [];
+    this.targetArray = [];
+    clearDb();
+  }
 }
 
 const model = new Model();
 model.setupSession();
 window.model = model;
 export default model;
-
-model.step = 0;
-export const train = () => {
-  if (model.step > 50) {
-    // Stop training.
-    return;
-  }
-
-  // Schedule the next batch to be trained.
-  requestAnimationFrame(train);
-
-  // We only fetch the cost every 5 steps because doing so requires a transfer
-  // of data from the GPU.
-  const localStepsToRun = 5;
-  let cost;
-  for (let i = 0; i < localStepsToRun; i++) {
-    //cost = model.train1Batch(i === localStepsToRun - 1);
-    cost = model.train1Batch(i === localStepsToRun - 1);
-    model.step++;
-  }
-
-  // Print data to console so the user can inspect.
-  console.log('step', model.step - 1, 'cost', cost);
-}
-window.train = train;
