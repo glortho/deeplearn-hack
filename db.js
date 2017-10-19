@@ -6,18 +6,18 @@ localforage.config({
   storeName: 'training_data' // Should be alphanumeric, with underscores.
 });
 
-export const addTraining = ( bbox, label ) =>
-  localforage.setItem( JSON.stringify( bbox ), label );
+export const addTraining = ({ bbox, x, y, label }) =>
+  localforage.setItem( JSON.stringify({ bbox, x, y }), label );
 
 export const getTrainingData = () => new Promise( resolve => {
   const map = new Map();
-  localforage.iterate(( label, bbox ) => {
-    map.set( JSON.parse( bbox ), label );
+  localforage.iterate(( label, key ) => {
+    map.set( JSON.parse( key ), label );
   } , () => resolve( map ));
 });
 
-export const removeTraining = ( bbox ) =>
-  localforage.removeItem( JSON.stringify( bbox ) );
+export const removeTraining = key =>
+  localforage.removeItem( JSON.stringify( key ) );
 
 export const clear = localforage.clear;
 

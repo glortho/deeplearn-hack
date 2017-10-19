@@ -14,6 +14,11 @@ import db from './db';
 
 export default class Map extends React.Component {
 
+  constructor( props ) {
+    super( props );
+    this.state = { label: 1 };
+  }
+
   componentWillMount() {
     let link = document.createElement("link");
     link.rel = "stylesheet";
@@ -29,25 +34,28 @@ export default class Map extends React.Component {
 
   componentDidMount() {
     getTrainingData().then( data =>
-      data.forEach((label, bbox) => this.fetch( bbox, label, { addToDb: false } ))
+      data.forEach((label, key) => this.fetchImg( key, label, { addToDb: false } ))
     );
   }
 
-  fetch = ( bbox, label = 1.0, options ) => {
+  fetchImg = ({ bbox, x, y }, label, options) => {
+    const z = 18;
+    let url = 'https://a.tiles.mapbox.com/v4/mapbox.streets-satellite/';
+    url += `${z}/${x}/${y}.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ`;
+    const img = new Image()
+    img.crossOrigin = "Anonymous"
+    img.onload = () => model.addTraining({ bbox, x, y, img, label, options });
+    img.onerror = function(err) {
+      console.log('err', err)
+    }
+    img.src = url
+  }
+
+  fetch = ( bbox, label, options ) => {
     const {minX, minY, maxX, maxY } = merc.xyz(bbox, 18);
     for ( let x=minX; x < maxX + 1; x++ ) {
       for ( let y=minY; y < maxY + 1; y++ ) {
-        const z = 18;
-        let url = 'https://a.tiles.mapbox.com/v4/mapbox.streets-satellite/';
-        url += `${z}/${x}/${y}.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ`;
-        console.log(url)
-        const img = new Image()
-        img.crossOrigin = "Anonymous"
-        img.onload = () => model.addTraining( bbox, img, label, options );
-        img.onerror = function(err) {
-          console.log('err', err)
-        }
-        img.src = url
+        this.fetchImg({ bbox, x, y }, label, options);
       }
     }
   }
@@ -71,26 +79,41 @@ export default class Map extends React.Component {
 
   getBbox = bbox => bbox.getBounds().toBBoxString().split(',').map( c => parseFloat(c) )
 
-  train = ( label = 1 ) => event => {
-    this.fetch( this.getBbox( event.target ) );
+  train = event => {
+    this.fetch( this.getBbox( event.layer ), this.state.label );
   }
 
   removeTrainingData = event => {
-    removeTraining( this.getBbox( event.target ) );
+    event.layers.getLayers().forEach( layer => {
+      const bbox = this.getBbox( layer );
+      const {minX, minY, maxX, maxY } = merc.xyz(bbox, 18);
+      for ( let x=minX; x < maxX + 1; x++ ) {
+        for ( let y=minY; y < maxY + 1; y++ ) {
+          removeTraining({ bbox, x, y });
+        }
+      }
+    });
   }
+
+  setLabel = label => () => this.setState({ label });
 
   render() {
     return (
       <div>
+        <div style={{ zIndex: 10000, position: 'absolute', left: '60px', top: '16px'}}>
+          <input name="label" type="radio" value="1" onChange={ this.setLabel( 1 ) } checked={ this.state.label === 1 }/>Airplane&nbsp;
+          <input name="label" type="radio" value="0" onChange={ this.setLabel( 0 ) } checked={ this.state.label === 0 }/>Not Airplane
+        </div>
         <LeafletMap ref="map" center={ [32.175068, -110.851364 ] } zoom={18} { ...this.mapOptions }>
           <TileLayer
             url="https://{s}.tiles.mapbox.com/v4/mapbox.streets-satellite/{z}/{x}/{y}@2x.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ"
             attribution = "&copy; Mapbox | &copy; DigitalGlobe"
           />
-          <FeatureGroup>
+          <FeatureGroup key="1">
             <EditControl
+              key="1"
               position='topleft'
-              onCreated={ this.train( 1 ) }
+              onCreated={ this.train }
               onDeleted={ this.removeTrainingData }
               draw={{
                 polyline: false,
@@ -99,29 +122,11 @@ export default class Map extends React.Component {
                 point: false,
                 marker: false,
                 circlemarker: false,
-                rectangle: this.shapeOptions,
+                rectangle: { ...this.shapeOptions, color: this.state.label ? this.shapeOptions.color : 'red' },
                 edit: true
               }}
             />
           </FeatureGroup>
-          <FeatureGroup>
-            <EditControl
-              position='bottomleft'
-              onCreated={ this.train( 0 ) }
-              onDeleted={ this.removeTrainingData }
-              draw={{
-                polyline: false,
-                polygon: false,
-                circle: false,
-                point: false,
-                marker: false,
-                circlemarker: false,
-                rectangle: { ...this.shapeOptions, color: 'red' },
-                edit: true
-              }}
-            />
-          </FeatureGroup>
-
         </LeafletMap>
       </div>
     );

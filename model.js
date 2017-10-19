@@ -1,5 +1,8 @@
 import {Array3D, Array1D, Array2D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor} from 'deeplearn';
-import { addTraining as addTrainingToDb } from './db';
+import {
+  addTraining as addTrainingToDb,
+  clear as clearDb
+} from './db';
 
 class Model {
   // Runs training.
@@ -23,7 +26,6 @@ class Model {
   // Maps tensors to InputProviders.
   feedEntries;
 
-  label = 0;
   inputSize = 5000;
 
   constructor() {
@@ -133,7 +135,7 @@ class Model {
    * Generates data used to train. Creates a feed entry that will later be used
    * to pass data into the model. Generates `exampleCount` data points.
    */
-  addTraining( bbox, img, label, options = { addToDb: true }) {
+  addTraining({ bbox, x, y, img, label, options = { addToDb: true } }) {
     this.math.scope(() => {
       const _3darr = Array3D.fromPixels(img);
       const canvas = document.createElement('canvas')
@@ -144,7 +146,7 @@ class Model {
       const pixels = context.getImageData(0, 0, img.width, img.height);
       const sliced = Array.from(pixels.data.slice(0, this.inputSize));
 
-      if ( options.addToDb ) addTrainingToDb( bbox, label );
+      if ( options.addToDb ) addTrainingToDb({ bbox, x, y, label });
 
       this.inputArray.push( Array1D.new( sliced ) );
       this.targetArray.push( Array1D.new( [ label ] ) );
@@ -225,6 +227,12 @@ class Model {
   train() {
     this.step = 0;
     this.trainLoop();
+  }
+
+  clear() {
+    this.inputArray = [];
+    this.targetArray = [];
+    clearDb();
   }
 }
 
