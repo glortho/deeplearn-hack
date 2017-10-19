@@ -1,4 +1,4 @@
-import {Array1D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor} from 'deeplearn';
+import {Array3D, Array1D, Array2D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor} from 'deeplearn';
 
 class Model {
   // Runs training.
@@ -22,6 +22,9 @@ class Model {
   // Maps tensors to InputProviders.
   feedEntries;
 
+  label = 0;
+  inputSize = 5000;
+
   constructor() {
     this.optimizer = new SGDOptimizer(this.initialLearningRate);
   }
@@ -33,7 +36,7 @@ class Model {
     const graph = new Graph();
 
     // This tensor contains the input. In this case, it is a scalar.
-    this.inputTensor = graph.placeholder('input', [262144]);
+    this.inputTensor = graph.placeholder('input', [this.inputSize]);
 
     // This tensor contains the target.
     this.targetTensor = graph.placeholder('output', [1]);
@@ -41,15 +44,15 @@ class Model {
     // Create 3 fully connected layers, each with half the number of nodes of
     // the previous layer. The first one has 64 nodes.
     let fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, this.inputTensor, 0, 64);
+        this.createFullyConnectedLayer(graph, this.inputTensor, 0, 32);
 
     // Create fully connected layer 1, which has 32 nodes.
     fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 1, 32);
+        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 1, 16);
 
     // Create fully connected layer 2, which has 16 nodes.
     fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 2, 16);
+        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 2, 8);
     this.predictionTensor =
         this.createFullyConnectedLayer(graph, fullyConnectedLayer, 3, 1);
 
@@ -61,9 +64,10 @@ class Model {
     this.session = new Session(graph, this.math);
 
     // Generate the data that will be used to train the model.
-    //this.generateTrainingData();
     this.inputArray = [];
     this.targetArray = [];
+    //console.log(Array3D.new([2, 2, 2], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]));
+    //this.generateTrainingData();
   }
 
   /**
@@ -78,7 +82,7 @@ class Model {
   train1Batch(shouldFetchCost) {
     // Every 42 steps, lower the learning rate by 15%.
     const learningRate =
-        this.initialLearningRate * Math.pow(0.85, Math.floor(step / 42));
+        this.initialLearningRate * Math.pow(0.85, Math.floor(model.step / 42));
     this.optimizer.setLearningRate(learningRate);
 
     // Train 1 batch.
@@ -101,14 +105,17 @@ class Model {
   }
 
   predict(arr) {
-    let values;
+    console.log(arr);
+    let values = [];
     this.math.scope((keep, track) => {
       const mapping = [{
         tensor: this.inputTensor,
         data: Array1D.new(arr),
       }];
       const evalOutput = this.session.eval(this.predictionTensor, mapping);
+      console.log(evalOutput.getValues(), Array.prototype.slice.call(evalOutput.getValues()));
       values = evalOutput.getValues();
+      
     });
     return values;
   }
@@ -128,7 +135,8 @@ class Model {
   addTraining( arr, label ) {
     this.math.scope(() => {
       this.inputArray.push( Array1D.new( arr ) );
-      this.targetArray.push( Array1D.new( [ label ] ) );
+      console.log('LABEL', this.label)
+      this.targetArray.push( Array1D.new( [ this.label ] ) );
 
       const shuffledInputProviderBuilder =
           new InCPUMemoryShuffledInputProviderBuilder(
@@ -149,14 +157,14 @@ class Model {
     this.math.scope(() => {
 
       // Store the data within Array1Ds so that learnjs can use it.
-      const inputArray = [
-        Array1D.new([0,0,0,0,0]),
-        Array1D.new([0,1,0,0,0]),
-        Array1D.new([0,0,2,0,0]),
-        Array1D.new([0,0,0,3,0]),
-        Array1D.new([0,0,0,0,4])
+      this.inputArray = [
+        Array1D.new([0,0,0,0,0,0,0,0]),
+        Array1D.new([0,1,0,0,0,0,0,1]),
+        Array1D.new([0,0,2,0,0,0,0,2]),
+        Array1D.new([0,0,0,3,0,0,0,3]),
+        Array1D.new([0,0,0,0,4,0,0,4])
       ];
-      const targetArray = [
+      this.targetArray = [
         Array1D.new([0]),
         Array1D.new([1]),
         Array1D.new([2]),
@@ -168,7 +176,7 @@ class Model {
       // that does not separate the input-target relationship).
       const shuffledInputProviderBuilder =
           new InCPUMemoryShuffledInputProviderBuilder(
-              [inputArray, targetArray]);
+              [this.inputArray, this.targetArray]);
       const [inputProvider, targetProvider] =
           shuffledInputProviderBuilder.getInputProviders();
 
@@ -186,9 +194,9 @@ model.setupSession();
 window.model = model;
 export default model;
 
-let step = 0;
+model.step = 0;
 export const train = () => {
-  if (step > 50) {
+  if (model.step > 50) {
     // Stop training.
     return;
   }
@@ -201,11 +209,12 @@ export const train = () => {
   const localStepsToRun = 5;
   let cost;
   for (let i = 0; i < localStepsToRun; i++) {
-    cost = model.train1Batch(true);
-    step++;
+    //cost = model.train1Batch(i === localStepsToRun - 1);
+    cost = model.train1Batch(i === localStepsToRun - 1);
+    model.step++;
   }
 
   // Print data to console so the user can inspect.
-  console.log('step', step - 1, 'cost', cost);
+  console.log('step', model.step - 1, 'cost', cost);
 }
-
+window.train = train;
