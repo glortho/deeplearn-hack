@@ -1,33 +1,38 @@
-/**
- * @license
- * Copyright 2017 Google Inc. All Rights Reserved.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- * =============================================================================
- */
-// tslint:disable-next-line:max-line-length
-import {Array1D, Array3D, Array4D, CheckpointLoader, NDArray, NDArrayMathCPU, NDArrayMathGPU} from 'deeplearn';
+// Copyright 2017 Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/* eslint-disable */
+
+//import { CheckpointLoader, NDArray } from './deeplearn/dist/src';
+import { CheckpointLoader, NDArray, NDArrayMathCPU } from 'deeplearn';
 
 import * as imagenet_classes from './imagenet_classes';
+import * as imagenet_util from './imagenet_util';
 
+const IMAGE_SIZE = 256; 
 const GOOGLE_CLOUD_STORAGE_DIR =
     'https://storage.googleapis.com/learnjs-data/checkpoint_zoo/';
 
-export class SqueezeNet {
-  variables;
+class SqueezeNet {
 
-  preprocessOffset = Array1D.new([103.939, 116.779, 123.68]);
-
-  constructor( math) {}
+  constructor( math ) { //, useFloatTextures) {
+    this.math = math;
+    //this.gpgpu = gpgpu;
+    //this.preprocessInputShader =
+    //    imagenet_util.getUnpackAndPreprocessInputShader(
+    //        gpgpu, [IMAGE_SIZE, IMAGE_SIZE], useFloatTextures);
+  }
 
   /**
    * Loads necessary variables for SqueezeNet. Resolves the promise when the
@@ -45,26 +50,44 @@ export class SqueezeNet {
   }
 
   /**
+   * Preprocess an RGB color texture before inferring through squeezenet.
+   * @param rgbTexture The RGB color texture to process into an Array3D.
+   * @param imageDimensions The 2D dimensions of the image.
+   */
+  preprocessColorTextureToArray3D(rgbTexture, imageDimensions) {
+    const preprocessResultShapeRC =
+        [imageDimensions[0], imageDimensions[0] * 3];
+
+    const preprocessResultTexture =
+        this.math.getTextureManager().acquireTexture(preprocessResultShapeRC);
+
+    imagenet_util.preprocessInput(
+        this.gpgpu, this.preprocessInputShader, rgbTexture,
+        preprocessResultTexture, preprocessResultShapeRC);
+    return NDArray.make([imageDimensions[0], imageDimensions[0], 3], {
+      texture: preprocessResultTexture,
+      textureShapeRC: preprocessResultShapeRC
+    });
+  }
+
+  /**
    * Infer through SqueezeNet, assumes variables have been loaded. This does
    * standard ImageNet pre-processing before inferring through the model. This
-   * method returns named activations as well as pre-softmax logits.
+   * method returns named activations as well as pre-softmax logits. The user
+   * needs to clean up namedActivations after inferring.
    *
-   * @param input un-preprocessed input Array.
+   * @param preprocessedInput preprocessed input Array.
    * @return Named activations and the pre-softmax logits.
    */
-  infer(input) {
-    // Keep a map of named activations for rendering purposes.
+  infer(preprocessedInput) {
     const namedActivations = {};
 
     const avgpool10 = this.math.scope((keep) => {
-      // Preprocess the input.
-      const preprocessedInput =
-          this.math.subtract(input, this.preprocessOffset);
-
       const conv1 = this.math.conv2d(
           preprocessedInput, this.variables['conv1_W:0'],
           this.variables['conv1_b:0'], 2, 0);
       const conv1relu = keep(this.math.relu(conv1));
+
       namedActivations['conv_1'] = conv1relu;
 
       const pool1 = keep(this.math.maxPool(conv1relu, 3, 2, 0));
@@ -76,7 +99,16 @@ export class SqueezeNet {
       const fire3 = keep(this.fireModule(fire2, 3));
       namedActivations['fire3'] = fire3;
 
-      const pool2 = keep(this.math.maxPool(fire3, 3, 2, 'valid'));
+      // Because we don't have uneven padding yet, manually pad the ndarray on
+      // the right.
+      const fire3Reshape2d =
+          fire3.as2D(fire3.shape[0], fire3.shape[1] * fire3.shape[2]);
+      const fire3Sliced2d = this.math.slice2D(
+          fire3Reshape2d, [0, 0],
+          [fire3.shape[0] - 1, (fire3.shape[1] - 1) * fire3.shape[2]]);
+      const fire3Sliced = fire3Sliced2d.as3D(
+          fire3.shape[0] - 1, fire3.shape[1] - 1, fire3.shape[2]);
+      const pool2 = keep(this.math.maxPool(fire3Sliced, 3, 2, 0));
       namedActivations['maxpool_2'] = pool2;
 
       const fire4 = keep(this.fireModule(pool2, 4));
@@ -108,16 +140,10 @@ export class SqueezeNet {
       return this.math.avgPool(conv10, conv10.shape[0], 1, 0).as1D();
     });
 
-    // Track these activations automatically so they get cleaned up in a parent
-    // scope.
-    const layerNames = Object.keys(namedActivations);
-    layerNames.forEach(
-        layerName => this.math.track(namedActivations[layerName]));
-
     return {namedActivations, logits: avgpool10};
   }
 
-   fireModule(input, fireId) {
+  fireModule(input, fireId) {
     const y1 = this.math.conv2d(
         input, this.variables['fire' + fireId + '/squeeze1x1_W:0'],
         this.variables['fire' + fireId + '/squeeze1x1_b:0'], 1, 0);
@@ -135,25 +161,20 @@ export class SqueezeNet {
     return this.math.concat3D(left2, right2, 2);
   }
 
-  /**
-   * Get the topK classes for pre-softmax logits. Returns a map of className
-   * to softmax normalized probability.
-   *
-   * @param logits Pre-softmax logits array.
-   * @param topK How many top classes to return.
-   */
   async getTopKClasses(logits: Array1D, topK: number) {
     const predictions = this.math.softmax(logits);
     const topk = new NDArrayMathCPU().topK(predictions, topK);
-    const topkIndices = await topk.indices.data();
-    const topkValues = await topk.values.data();
+    console.log('topK', topk)
+    const topkIndices = topk.indices.data.values;
+    const topkValues = topk.values.data.values;
 
     const topClassesToProbability = {};
     for (let i = 0; i < topkIndices.length; i++) {
-      topClassesToProbability[imagenet_classes
-                                  .IMAGENET_CLASSES[topkIndices[i]]] =
-          topkValues[i];
+      console.log(topkIndices[i], topkValues[i])
+      topClassesToProbability[imagenet_classes.IMAGENET_CLASSES[topkIndices[i]]] = topkValues[i];
     }
     return topClassesToProbability;
   }
 }
+
+export default SqueezeNet;

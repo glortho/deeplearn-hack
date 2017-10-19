@@ -23,6 +23,7 @@
     "babel-preset-es2015": "^6.24.1",
     "babel-preset-react": "^6.24.1",
     "babel-preset-stage-0": "^6.24.1",
+    "babel-regenerator-runtime": "^6.5.0",
     "deeplearn": "^0.3.2",
     "iso-fetch-stream": "^0.1.4",
     "leaflet": "^1.2.0",

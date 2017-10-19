@@ -3,13 +3,13 @@ import SphericalMercator from 'sphericalmercator';
 import unpack from 'ndarray-unpack';
 import imshow from 'ndarray-imshow';
 
-import { SqueezeNet } from './squeezenet';
+import SqueezeNet from './squeezenet';
 
 const merc = new SphericalMercator({
   size: 256
 });
 
-import {Array1D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor} from 'deeplearn';
+import {Array3D, Array1D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor} from 'deeplearn';
 
 import {
   addTraining as addTrainingToDb,
@@ -49,6 +49,15 @@ class Model {
    * Constructs the graph of the model. Call this method before training.
    */
   setupSession() {
+
+    this.squeezeNet = new SqueezeNet(this.math);
+    this.squeezeNet.loadVariables().then(() => {
+      this.math.scope(() => {
+        const warmup = Array3D.randNormal( [227, 227, 3] );
+        this.infer( warmup );
+      });
+    });
+
     const graph = new Graph();
 
     // This tensor contains the input. In this case, it is a scalar.
@@ -60,15 +69,15 @@ class Model {
     // Create 3 fully connected layers, each with half the number of nodes of
     // the previous layer. The first one has 64 nodes.
     let fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, this.inputTensor, 0, 32);
+        this.createFullyConnectedLayer(graph, this.inputTensor, 0, 64);
 
     // Create fully connected layer 1, which has 32 nodes.
     fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 1, 16);
+        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 1, 32);
 
     // Create fully connected layer 2, which has 16 nodes.
     fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 2, 8);
+        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 2, 16);
     this.predictionTensor =
         this.createFullyConnectedLayer(graph, fullyConnectedLayer, 3, 1);
 
@@ -83,11 +92,6 @@ class Model {
     this.inputArray = [];
     this.targetArray = [];
     //this.generateTrainingData();
-
-    this.squeezeNet = new SqueezeNet(this.math);
-    this.squeezeNet.loadVariables().then(() => {
-      //requestAnimationFrame(() => this.animate());
-    });
   }
 
   unpack_flat = (view) => { 
@@ -179,7 +183,6 @@ class Model {
    */
   addTraining({ bbox, x, y, img, label, options = { addToDb: true } }) {
     this.math.scope(() => {
-
       const tile_bbox = merc.bbox(x, y, 17);
       const minXY = this.tilePx(bbox[3], bbox[0], tile_bbox);
       const maxXY = this.tilePx(bbox[1], bbox[2], tile_bbox);
@@ -202,11 +205,16 @@ class Model {
           .hi(maxy, maxx)
           .lo(miny, minx)
 
+
         const red = this.unpack_flat(clip.pick(null, null, 0));
         const green = this.unpack_flat(clip.pick(null, null, 1));
         const blue = this.unpack_flat(clip.pick(null, null, 2));
 
-        console.log(clip)
+        // SqueezeNet
+        //const flat = this.unpack_flat(clip);
+        //console.log(Array3D.new([227,227,3], flat));
+
+        imshow(clip)
 
         this.inputArray.push( 
           Array1D.new( red ), 
@@ -307,10 +315,11 @@ class Model {
   async infer(img) {
     const inferenceResult = this.squeezeNet.infer( img );
     const namedActivations = inferenceResult.namedActivations;
-    console.log( inferenceResult );
+    console.log( 'inference', inferenceResult );
     const nClasses = 10;
     const topClassesToProbability = await this.squeezeNet.getTopKClasses(
       inferenceResult.logits, nClasses);
+    console.log(topClassesToProbability);
   }
 }
 
