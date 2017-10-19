@@ -3,7 +3,7 @@ import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 import api from './lib/api';
 import SphericalMercator from 'sphericalmercator';
-import { getTrainingData } from './db';
+import { getTrainingData, removeTraining } from './db';
 
 const merc = new SphericalMercator({
   size: 256
@@ -66,12 +66,17 @@ export default class Map extends React.Component {
   shapeOptions = {
     color: "#01bf0a",
     weight: 3,
-    fill: false
-
+    fill: true
   }
 
-  train = event => {
-    this.fetch( event.layer._bounds.toBBoxString().split(',').map( c => parseFloat(c) ) );
+  getBbox = bbox => bbox.getBounds().toBBoxString().split(',').map( c => parseFloat(c) )
+
+  train = ( label = 1 ) => event => {
+    this.fetch( this.getBbox( event.target ) );
+  }
+
+  removeTrainingData = event => {
+    removeTraining( this.getBbox( event.target ) );
   }
 
   render() {
@@ -85,15 +90,33 @@ export default class Map extends React.Component {
           <FeatureGroup>
             <EditControl
               position='topleft'
-              onCreated={ this.train }
+              onCreated={ this.train( 1 ) }
+              onDeleted={ this.removeTrainingData }
               draw={{
                 polyline: false,
-                polygon: this.shapeOptions ,
+                polygon: false,
                 circle: false,
                 point: false,
                 marker: false,
                 circlemarker: false,
-                rectangle: this.shapeOptions ,
+                rectangle: this.shapeOptions,
+                edit: true
+              }}
+            />
+          </FeatureGroup>
+          <FeatureGroup>
+            <EditControl
+              position='bottomleft'
+              onCreated={ this.train( 0 ) }
+              onDeleted={ this.removeTrainingData }
+              draw={{
+                polyline: false,
+                polygon: false,
+                circle: false,
+                point: false,
+                marker: false,
+                circlemarker: false,
+                rectangle: { ...this.shapeOptions, color: 'red' },
                 edit: true
               }}
             />
