@@ -1,4 +1,4 @@
-import { FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
+import { Rectangle, FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 import ndarray from 'ndarray';
@@ -14,11 +14,11 @@ const merc = new SphericalMercator({
 import model, { train } from './model';
 import db from './db';
 
-export default class Map extends React.Component {
+export default class MapComponent extends React.Component {
 
   constructor( props ) {
     super( props );
-    this.state = { label: 1 };
+    this.state = { label: 1, rectangles: new Map() };
   }
 
   componentWillMount() {
@@ -32,11 +32,13 @@ export default class Map extends React.Component {
     link.href = "//cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.12/leaflet.draw.css";
     document.getElementsByTagName("head")[0].appendChild(link);
 
-  }
-
-  componentDidMount() {
     getTrainingData().then( data =>
-      data.forEach((label, key) => this.fetchImg( key, label, { addToDb: false } ))
+      data.forEach((label, key) => {
+        this.setState( state => ({
+          rectangles: state.rectangles.set( key.bbox, label )
+        }));
+        this.fetchImg( key, label, { addToDb: false } )
+      })
     );
   }
 
@@ -136,6 +138,9 @@ export default class Map extends React.Component {
               }}
             />
           </FeatureGroup>
+          {[ ...this.state.rectangles ].map(([ bbox, label], idx) => {
+            return <Rectangle key={ idx } bounds={[[bbox[1], bbox[0]], [bbox[3], bbox[2]]]} color={ label ? this.shapeOptions.color : 'red' } />;
+          })}
         </LeafletMap>
       </div>
     );
