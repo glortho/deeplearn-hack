@@ -35,7 +35,7 @@ class Model {
   // Maps tensors to InputProviders.
   feedEntries;
 
-  inputSize = 5000;
+  inputSize = 3000;
 
   constructor() {
     this.optimizer = new SGDOptimizer(this.initialLearningRate);
@@ -78,12 +78,18 @@ class Model {
     // Generate the data that will be used to train the model.
     this.inputArray = [];
     this.targetArray = [];
-    //console.log(Array3D.new([2, 2, 2], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]));
     //this.generateTrainingData();
   }
 
-  unpack_flat = (view) => unpack(view)
-    .reduce((master, row) => master.concat( [ ...row ] ), [] );
+  unpack_flat = (view) => { 
+    const arr = unpack(view)
+      .reduce((master, row) => master.concat( [ ...row ] ), [] );
+    if ( arr.length < this.inputSize ) {
+      return arr.concat( Array( this.inputSize - arr.length ).fill( 0 ) );
+    } else {
+      return arr.slice(0, this.inputSize );
+    }
+  }
 
   tilePx = (lat, lon, tile_bbox) => {
     const w = 256;
@@ -190,6 +196,8 @@ class Model {
         const red = this.unpack_flat(clip.pick(null, null, 0));
         const green = this.unpack_flat(clip.pick(null, null, 1));
         const blue = this.unpack_flat(clip.pick(null, null, 2));
+
+        console.log(red.length)
 
         this.inputArray.push( 
           Array1D.new( red ), 
