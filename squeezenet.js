@@ -23,18 +23,18 @@ const GOOGLE_CLOUD_STORAGE_DIR =
     'https://storage.googleapis.com/learnjs-data/checkpoint_zoo/';
 
 export class SqueezeNet {
-  private variables: {[varName: string]: NDArray};
+  variables;
 
-  private preprocessOffset = Array1D.new([103.939, 116.779, 123.68]);
+  preprocessOffset = Array1D.new([103.939, 116.779, 123.68]);
 
-  constructor(private math: NDArrayMathGPU) {}
+  constructor( math) {}
 
   /**
    * Loads necessary variables for SqueezeNet. Resolves the promise when the
    * variables have all been loaded.
    */
-  loadVariables(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+  loadVariables() {
+    return new Promise((resolve, reject) => {
       const checkpointLoader =
           new CheckpointLoader(GOOGLE_CLOUD_STORAGE_DIR + 'squeezenet1_1/');
       checkpointLoader.getAllVariables().then(variables => {
@@ -52,19 +52,18 @@ export class SqueezeNet {
    * @param input un-preprocessed input Array.
    * @return Named activations and the pre-softmax logits.
    */
-  infer(input: Array3D):
-      {namedActivations: {[activationName: string]: Array3D}, logits: Array1D} {
+  infer(input) {
     // Keep a map of named activations for rendering purposes.
-    const namedActivations: {[key: string]: Array3D} = {};
+    const namedActivations = {};
 
     const avgpool10 = this.math.scope((keep) => {
       // Preprocess the input.
       const preprocessedInput =
-          this.math.subtract(input, this.preprocessOffset) as Array3D;
+          this.math.subtract(input, this.preprocessOffset);
 
       const conv1 = this.math.conv2d(
-          preprocessedInput, this.variables['conv1_W:0'] as Array4D,
-          this.variables['conv1_b:0'] as Array1D, 2, 0);
+          preprocessedInput, this.variables['conv1_W:0'],
+          this.variables['conv1_b:0'], 2, 0);
       const conv1relu = keep(this.math.relu(conv1));
       namedActivations['conv_1'] = conv1relu;
 
@@ -102,8 +101,8 @@ export class SqueezeNet {
       namedActivations['fire9'] = fire9;
 
       const conv10 = keep(this.math.conv2d(
-          fire9, this.variables['conv10_W:0'] as Array4D,
-          this.variables['conv10_b:0'] as Array1D, 1, 0));
+          fire9, this.variables['conv10_W:0'],
+          this.variables['conv10_b:0'], 1, 0));
       namedActivations['conv10'] = conv10;
 
       return this.math.avgPool(conv10, conv10.shape[0], 1, 0).as1D();
@@ -118,19 +117,19 @@ export class SqueezeNet {
     return {namedActivations, logits: avgpool10};
   }
 
-  private fireModule(input: Array3D, fireId: number) {
+   fireModule(input, fireId) {
     const y1 = this.math.conv2d(
-        input, this.variables['fire' + fireId + '/squeeze1x1_W:0'] as Array4D,
-        this.variables['fire' + fireId + '/squeeze1x1_b:0'] as Array1D, 1, 0);
+        input, this.variables['fire' + fireId + '/squeeze1x1_W:0'],
+        this.variables['fire' + fireId + '/squeeze1x1_b:0'], 1, 0);
     const y2 = this.math.relu(y1);
     const left1 = this.math.conv2d(
-        y2, this.variables['fire' + fireId + '/expand1x1_W:0'] as Array4D,
-        this.variables['fire' + fireId + '/expand1x1_b:0'] as Array1D, 1, 0);
+        y2, this.variables['fire' + fireId + '/expand1x1_W:0'],
+        this.variables['fire' + fireId + '/expand1x1_b:0'], 1, 0);
     const left2 = this.math.relu(left1);
 
     const right1 = this.math.conv2d(
-        y2, this.variables['fire' + fireId + '/expand3x3_W:0'] as Array4D,
-        this.variables['fire' + fireId + '/expand3x3_b:0'] as Array1D, 1, 1);
+        y2, this.variables['fire' + fireId + '/expand3x3_W:0'],
+        this.variables['fire' + fireId + '/expand3x3_b:0'], 1, 1);
     const right2 = this.math.relu(right1);
 
     return this.math.concat3D(left2, right2, 2);
@@ -143,14 +142,13 @@ export class SqueezeNet {
    * @param logits Pre-softmax logits array.
    * @param topK How many top classes to return.
    */
-  async getTopKClasses(logits: Array1D, topK: number):
-      Promise<{[className: string]: number}> {
+  async getTopKClasses(logits: Array1D, topK: number) {
     const predictions = this.math.softmax(logits);
     const topk = new NDArrayMathCPU().topK(predictions, topK);
     const topkIndices = await topk.indices.data();
     const topkValues = await topk.values.data();
 
-    const topClassesToProbability: {[className: string]: number} = {};
+    const topClassesToProbability = {};
     for (let i = 0; i < topkIndices.length; i++) {
       topClassesToProbability[imagenet_classes
                                   .IMAGENET_CLASSES[topkIndices[i]]] =

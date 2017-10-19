@@ -304,7 +304,7 @@ class Model {
     clearDb();
   }
 
-  infer(img) {
+  async infer(img) {
     const inferenceResult = this.squeezeNet.infer( img );
     const namedActivations = inferenceResult.namedActivations;
     console.log( inferenceResult );
