@@ -161,19 +161,19 @@ class SqueezeNet {
     return this.math.concat3D(left2, right2, 2);
   }
 
-  async getTopKClasses(logits: Array1D, topK: number) {
+  getTopKClasses(logits, topK) {
     const predictions = this.math.softmax(logits);
     const topk = new NDArrayMathCPU().topK(predictions, topK);
-    console.log('topK', topk)
     const topkIndices = topk.indices.data.values;
     const topkValues = topk.values.data.values;
 
-    const topClassesToProbability = {};
+    const topClasses = [];
     for (let i = 0; i < topkIndices.length; i++) {
-      console.log(topkIndices[i], topkValues[i])
-      topClassesToProbability[imagenet_classes.IMAGENET_CLASSES[topkIndices[i]]] = topkValues[i];
+      //topClassesToProbability[imagenet_classes.IMAGENET_CLASSES[topkIndices[i]]] = topkValues[i];
+      topClasses.push(topkIndices[i]);
     }
-    return topClassesToProbability;
+    return topClasses;
+    //return topClassesToProbability;
   }
 }
 

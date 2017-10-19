@@ -16,6 +16,8 @@ import db from './db';
 
 export default class MapComponent extends React.Component {
 
+  zoom = 18
+
   constructor( props ) {
     super( props );
     this.state = { label: 1, rectangles: new Map() };
@@ -48,9 +50,8 @@ export default class MapComponent extends React.Component {
   }
 
   fetchImg = ({ bbox, x, y }, label, options) => {
-    const z = 17;
     let url = 'https://a.tiles.mapbox.com/v4/mapbox.streets-satellite/';
-    url += `${z}/${x}/${y}.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ`;
+    url += `${this.zoom}/${x}/${y}.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ`;
     const img = new Image()
     img.crossOrigin = "Anonymous"
     img.onload = () => model.addTraining({ bbox, x, y, img, label, options });
@@ -61,7 +62,7 @@ export default class MapComponent extends React.Component {
   }
 
   fetch = ( bbox, label, options ) => {
-    const {minX, minY, maxX, maxY } = merc.xyz(bbox, 17);
+    const {minX, minY, maxX, maxY } = merc.xyz(bbox, this.zoom);
     for ( let x=minX; x < maxX + 1; x++ ) {
       for ( let y=minY; y < maxY + 1; y++ ) {
         this.fetchImg({ bbox, x, y }, label, options);
@@ -96,7 +97,7 @@ export default class MapComponent extends React.Component {
     event.layers.getLayers().forEach( layer => {
       const bbox = this.getBbox( layer );
       this.removeRect( bbox );
-      const {minX, minY, maxX, maxY } = merc.xyz(bbox, 17);
+      const {minX, minY, maxX, maxY } = merc.xyz(bbox, this.zoom);
       for ( let x=minX; x < maxX + 1; x++ ) {
         for ( let y=minY; y < maxY + 1; y++ ) {
           removeTraining({ bbox, x, y });
@@ -116,7 +117,7 @@ export default class MapComponent extends React.Component {
 
   removeBbox = bbox => () => {
     this.removeRect( bbox );
-    const {minX, minY, maxX, maxY } = merc.xyz(bbox, 17);
+    const {minX, minY, maxX, maxY } = merc.xyz(bbox, this.zoom);
     for ( let x=minX; x < maxX + 1; x++ ) {
       for ( let y=minY; y < maxY + 1; y++ ) {
         removeTraining({ bbox, x, y });
@@ -141,7 +142,7 @@ export default class MapComponent extends React.Component {
             <input name="label" type="radio" value="0" onChange={ this.setLabel( 0 ) } checked={ this.state.label === 0 }/>Not Airplane
           </label>
         </div>
-        <LeafletMap ref="map" center={ [32.175068, -110.851364 ] } zoom={18} { ...this.mapOptions }>
+        <LeafletMap ref="map" center={ [32.175068, -110.851364 ] } zoom={17} { ...this.mapOptions }>
           <TileLayer
             url="https://{s}.tiles.mapbox.com/v4/mapbox.streets-satellite/{z}/{x}/{y}@2x.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ"
             attribution = "&copy; Mapbox | &copy; DigitalGlobe"
