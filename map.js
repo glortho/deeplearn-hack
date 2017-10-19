@@ -3,8 +3,10 @@ import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 import api from './lib/api';
 import ndarray from 'ndarray';
+import imshow from 'ndarray-imshow';
 import SphericalMercator from 'sphericalmercator';
-import { Array3D } from 'deeplearn';
+//import { Array3D } from 'deeplearn';
+import unpack from 'ndarray-unpack';
 
 const merc = new SphericalMercator({
   size: 256
@@ -28,36 +30,75 @@ export default class Map extends React.Component {
 
   }
 
+  unpack_flat = (view) => unpack(view)
+    .reduce((master, row) => master.concat( [ ...row ] ), [] );
+
+  tilePx = (lat, lon, tile_bbox) => {
+    const w = 256;
+    const h = 256;
+    const lat0 = tile_bbox[3];
+    const lon0 = tile_bbox[0];
+    const latD = tile_bbox[3] - tile_bbox[1];
+    const lonD = tile_bbox[2] - tile_bbox[0];
+    let longitude = lon;
+    longitude -= lon0;
+    let latitude = lat0 - lat;
+    const x = (w*(longitude/lonD));
+    const y = Math.min(256.0, (h*(latitude/latD)));
+    return [parseInt(Math.max(0,x)), parseInt(Math.max(0,y))];
+  } 
+
   fetch = ( bbox ) => {
-    const {minX, minY, maxX, maxY } = merc.xyz(bbox, 18);
+    const z = 18;
+    const {minX, minY, maxX, maxY } = merc.xyz(bbox, z);
     for ( let x=minX; x < maxX + 1; x++ ) {
       for ( let y=minY; y < maxY + 1; y++ ) {
-        const z = 18;
         let url = 'https://a.tiles.mapbox.com/v4/mapbox.streets-satellite/';
         url += `${z}/${x}/${y}.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ`;
         console.log(url)
+
+        const tile_bbox = merc.bbox(x, y, z);
+        const minXY = this.tilePx(bbox[3], bbox[0], tile_bbox);
+        const maxXY = this.tilePx(bbox[1], bbox[2], tile_bbox);
+
         const img = new Image()
         img.crossOrigin = "Anonymous"
         img.onload = () => {
-          const _3darr = Array3D.fromPixels(img);
-          console.log(_3darr)
           const canvas = document.createElement('canvas')
           canvas.width = img.width
           canvas.height = img.height
           const context = canvas.getContext('2d')
           context.drawImage(img, 0, 0)
           const pixels = context.getImageData(0, 0, img.width, img.height);
-          const sliced = Array.from(pixels.data.slice(0, model.inputSize));
-          console.log(Array.from(sliced));
-          //const arr = ndarray(new Uint8Array(pixels.data), [img.width, img.height, 4], [4, 4*img.width, 1], 0)
-          model.addTraining( sliced, 1.0 );
-          model.step = 0;
-          //train(); 
+
+          const arr = ndarray(new Uint8Array(pixels.data), [img.width, img.height, 4], [4*img.width, 4, 1], 0);
+          if ( (maxXY[1] - minXY[1]) > 0 && ( maxXY[0] - minXY[0] ) > 0 ) {
+            const miny = minXY[1];
+            const minx = minXY[0];
+            const maxy = maxXY[1];
+            const maxx = maxXY[0];
+            const clip = arr
+              .hi(maxy, maxx)
+              .lo(miny, minx)
+
+            const red = this.unpack_flat(clip.pick(null, null, 0));
+            const green = this.unpack_flat(clip.pick(null, null, 1));
+            const blue = this.unpack_flat(clip.pick(null, null, 2));
+            console.log(red)
+
+            //const sliced = Array.from(pixels.data.slice(0, model.inputSize));
+            //console.log(Array.from(sliced));
+
+            //model.addTraining( sliced, 1.0 );
+            //model.step = 0;
+            //train(); 
+          }
         }
         img.onerror = function(err) {
           console.log('err', err)
         }
         img.src = url
+        
       }
     }
   }
