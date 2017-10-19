@@ -1,4 +1,4 @@
-import { Rectangle, FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
+import { Popup, Rectangle, FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 import ndarray from 'ndarray';
@@ -95,6 +95,7 @@ export default class MapComponent extends React.Component {
   removeTrainingData = event => {
     event.layers.getLayers().forEach( layer => {
       const bbox = this.getBbox( layer );
+      this.removeRect( bbox );
       const {minX, minY, maxX, maxY } = merc.xyz(bbox, 17);
       for ( let x=minX; x < maxX + 1; x++ ) {
         for ( let y=minY; y < maxY + 1; y++ ) {
@@ -102,6 +103,25 @@ export default class MapComponent extends React.Component {
         }
       }
     });
+  }
+
+  removeRect = bbox => {
+    if ( this.state.rectangles.get( bbox ) ) {
+      this.setState( state => {
+        state.rectangles.delete( bbox );
+        return { rectangles: state.rectangles };
+      });
+    }
+  }
+
+  removeBbox = bbox => () => {
+    this.removeRect( bbox );
+    const {minX, minY, maxX, maxY } = merc.xyz(bbox, 17);
+    for ( let x=minX; x < maxX + 1; x++ ) {
+      for ( let y=minY; y < maxY + 1; y++ ) {
+        removeTraining({ bbox, x, y });
+      }
+    }
   }
 
   setLabel = label => () => this.setState({ label });
@@ -147,7 +167,15 @@ export default class MapComponent extends React.Component {
             />
           </FeatureGroup>
           {[ ...this.state.rectangles ].map(([ bbox, label], idx) => {
-            return <Rectangle key={ idx } bounds={[[bbox[1], bbox[0]], [bbox[3], bbox[2]]]} color={ label ? this.shapeOptions.color : 'red' } />;
+            return (
+              <Rectangle key={ idx } bounds={[[bbox[1], bbox[0]], [bbox[3], bbox[2]]]} color={ label ? this.shapeOptions.color : 'red' }>
+                <Popup>
+                  <div>
+                    <button onClick={ this.removeBbox( bbox ) }>Delete</button>
+                  </div>
+                </Popup>
+              </Rectangle>
+            );
           })}
         </LeafletMap>
       </div>
