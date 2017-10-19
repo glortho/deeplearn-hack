@@ -1,4 +1,5 @@
 import {Array3D, Array1D, Array2D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor} from 'deeplearn';
+import { addTraining as addTrainingToDb } from './db';
 
 class Model {
   // Runs training.
@@ -79,10 +80,10 @@ class Model {
    * batch. Otherwise, returns -1. We should only retrieve the cost now and then
    * because doing so requires transferring data from the GPU.
    */
-  train1Batch(shouldFetchCost) {
+  train1Batch(shouldFetchCost = false) {
     // Every 42 steps, lower the learning rate by 15%.
     const learningRate =
-        this.initialLearningRate * Math.pow(0.85, Math.floor(model.step / 42));
+        this.initialLearningRate * Math.pow(0.85, Math.floor(this.step / 42));
     this.optimizer.setLearningRate(learningRate);
 
     // Train 1 batch.
@@ -115,7 +116,7 @@ class Model {
       const evalOutput = this.session.eval(this.predictionTensor, mapping);
       console.log(evalOutput.getValues(), Array.prototype.slice.call(evalOutput.getValues()));
       values = evalOutput.getValues();
-      
+
     });
     return values;
   }
@@ -132,17 +133,26 @@ class Model {
    * Generates data used to train. Creates a feed entry that will later be used
    * to pass data into the model. Generates `exampleCount` data points.
    */
-  addTraining( arr, label ) {
+  addTraining( bbox, img, label ) {
     this.math.scope(() => {
-      this.inputArray.push( Array1D.new( arr ) );
-      console.log('LABEL', this.label)
+      const _3darr = Array3D.fromPixels(img);
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const context = canvas.getContext('2d')
+      context.drawImage(img, 0, 0)
+      const pixels = context.getImageData(0, 0, img.width, img.height);
+      const sliced = Array.from(pixels.data.slice(0, this.inputSize));
+
+      addTrainingToDb( bbox, this.label );
+      this.inputArray.push( Array1D.new( sliced ) );
       this.targetArray.push( Array1D.new( [ this.label ] ) );
 
       const shuffledInputProviderBuilder =
-          new InCPUMemoryShuffledInputProviderBuilder(
-              [this.inputArray, this.targetArray]);
+        new InCPUMemoryShuffledInputProviderBuilder(
+          [this.inputArray, this.targetArray]);
       const [inputProvider, targetProvider] =
-          shuffledInputProviderBuilder.getInputProviders();
+        shuffledInputProviderBuilder.getInputProviders();
 
       // Maps tensors to InputProviders.
       this.feedEntries = [
@@ -187,34 +197,37 @@ class Model {
       ];
     });
   }
+
+  trainLoop = () => {
+    if (this.step > 50) {
+      // Stop training.
+      return;
+    }
+
+    // Schedule the next batch to be trained.
+    requestAnimationFrame(this.trainLoop);
+
+    // We only fetch the cost every 5 steps because doing so requires a transfer
+    // of data from the GPU.
+    const localStepsToRun = 5;
+    let cost;
+    for (let i = 0; i < localStepsToRun; i++) {
+      //cost = model.train1Batch(i === localStepsToRun - 1);
+      cost = model.train1Batch(this.step, i === localStepsToRun - 1);
+      this.step++;
+    }
+
+    // Print data to console so the user can inspect.
+    console.log('step', this.step - 1, 'cost', cost);
+  }
+
+  train() {
+    this.step = 0;
+    this.trainLoop();
+  }
 }
 
 const model = new Model();
 model.setupSession();
 window.model = model;
 export default model;
-
-model.step = 0;
-export const train = () => {
-  if (model.step > 50) {
-    // Stop training.
-    return;
-  }
-
-  // Schedule the next batch to be trained.
-  requestAnimationFrame(train);
-
-  // We only fetch the cost every 5 steps because doing so requires a transfer
-  // of data from the GPU.
-  const localStepsToRun = 5;
-  let cost;
-  for (let i = 0; i < localStepsToRun; i++) {
-    //cost = model.train1Batch(i === localStepsToRun - 1);
-    cost = model.train1Batch(i === localStepsToRun - 1);
-    model.step++;
-  }
-
-  // Print data to console so the user can inspect.
-  console.log('step', model.step - 1, 'cost', cost);
-}
-window.train = train;

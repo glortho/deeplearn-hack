@@ -2,9 +2,7 @@ import { FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 import api from './lib/api';
-import ndarray from 'ndarray';
 import SphericalMercator from 'sphericalmercator';
-import { Array3D } from 'deeplearn';
 
 const merc = new SphericalMercator({
   size: 256
@@ -38,22 +36,7 @@ export default class Map extends React.Component {
         console.log(url)
         const img = new Image()
         img.crossOrigin = "Anonymous"
-        img.onload = () => {
-          const _3darr = Array3D.fromPixels(img);
-          console.log(_3darr)
-          const canvas = document.createElement('canvas')
-          canvas.width = img.width
-          canvas.height = img.height
-          const context = canvas.getContext('2d')
-          context.drawImage(img, 0, 0)
-          const pixels = context.getImageData(0, 0, img.width, img.height);
-          const sliced = Array.from(pixels.data.slice(0, model.inputSize));
-          console.log(Array.from(sliced));
-          //const arr = ndarray(new Uint8Array(pixels.data), [img.width, img.height, 4], [4, 4*img.width, 1], 0)
-          model.addTraining( sliced, 1.0 );
-          model.step = 0;
-          //train(); 
-        }
+        img.onload = () => model.addTraining( bbox, img, 1.0 );
         img.onerror = function(err) {
           console.log('err', err)
         }
