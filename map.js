@@ -24,7 +24,7 @@ export default class Map extends React.Component {
     link.rel = "stylesheet";
     link.href = "//cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.12/leaflet.draw.css";
     document.getElementsByTagName("head")[0].appendChild(link);
-    
+
   }
 
   fetch = ( bbox ) => {
@@ -34,7 +34,7 @@ export default class Map extends React.Component {
       for ( let y=minY; y < maxY + 1; y++ ) {
         console.log(x,y)
 
-        // convert to zxy 
+        // convert to zxy
         const z = 18;
         //const x = 50355;
         //const y = 106303;
@@ -53,7 +53,7 @@ export default class Map extends React.Component {
           console.log(pixels.data[0]);
           //const arr = ndarray(new Uint8Array(pixels.data), [img.width, img.height, 4], [4, 4*img.width, 1], 0)
           model.addTraining( Array.from(pixels.data), 1 );
-          train(); 
+          train();
         }
         img.onerror = function(err) {
           console.log('err', err)
@@ -80,30 +80,9 @@ export default class Map extends React.Component {
     fill: false
 
   }
-<<<<<<< HEAD
 
   train = event => {
     this.fetch( event.layer._bounds.toBBoxString().split(',').map( c => parseFloat(c) ) );
-=======
-  componentWillMount() {
-    let link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "//unpkg.com/leaflet@1.2.0/dist/leaflet.css";
-    link.integrity = 'sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ==';
-    link.crossOrigin = '';
-    document.getElementsByTagName("head")[0].appendChild(link);
-
-    link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "//cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.12/leaflet.draw.css";
-    document.getElementsByTagName("head")[0].appendChild(link);
-  }
-
-  train = event => {
-    console.log( event );
-    // db.setItem()
->>>>>>> 9a8ce65ca9c6ce06d3ee49fe59df08bac4a32ca9
-    // model.train()
   }
 
   render() {
