@@ -122,7 +122,9 @@ export default class Map extends React.Component {
                 point: false,
                 marker: false,
                 circlemarker: false,
-                rectangle: { ...this.shapeOptions, color: this.state.label ? this.shapeOptions.color : 'red' },
+                rectangle: {
+                  shapeOptions: { ...this.shapeOptions, color: this.state.label ? this.shapeOptions.color : 'red' }
+                },
                 edit: true
               }}
             />
