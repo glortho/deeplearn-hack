@@ -1,4 +1,4 @@
-import { FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
+import { Rectangle, FeatureGroup, Map as LeafletMap, TileLayer } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 import ndarray from 'ndarray';
@@ -11,14 +11,14 @@ const merc = new SphericalMercator({
   size: 256
 });
 
-import model, { train } from './model';
+import model from './model';
 import db from './db';
 
-export default class Map extends React.Component {
+export default class MapComponent extends React.Component {
 
   constructor( props ) {
     super( props );
-    this.state = { label: 1 };
+    this.state = { label: 1, rectangles: new Map() };
   }
 
   componentWillMount() {
@@ -32,12 +32,19 @@ export default class Map extends React.Component {
     link.href = "//cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.12/leaflet.draw.css";
     document.getElementsByTagName("head")[0].appendChild(link);
 
+    getTrainingData().then( data =>
+      data.forEach((label, key) => {
+        this.setState( state => ({
+          rectangles: state.rectangles.set( key.bbox, label )
+        }));
+        this.fetchImg( key, label, { addToDb: false } )
+      })
+    );
   }
 
-  componentDidMount() {
-    getTrainingData().then( data =>
-      data.forEach((label, key) => this.fetchImg( key, label, { addToDb: false } ))
-    );
+  clearAll = () => {
+    model.clear();
+    this.setState( state => ({ rectangles: new Map() }));
   }
 
   fetchImg = ({ bbox, x, y }, label, options) => {
@@ -102,7 +109,10 @@ export default class Map extends React.Component {
   render() {
     return (
       <div>
-        <div style={{ zIndex: 10000, position: 'absolute', top: '14px', right: '10px'}}><button onClick={() => model.train()}>Train</button></div>
+        <div style={{ zIndex: 10000, position: 'absolute', top: '14px', right: '10px'}}>
+          <button onClick={ this.clearAll }>Clear All</button>&nbsp;
+          <button onClick={() => model.train()}>Train</button>
+        </div>
         <div style={{ zIndex: 10000, position: 'absolute', left: '60px', top: '14px', background: 'rgba(255,255,255,0.3)', padding: '6px', borderRadius: '2px', color: '#111' }}>
           <label>
             <input name="label" type="radio" value="1" onChange={ this.setLabel( 1 ) } checked={ this.state.label === 1 }/>Airplane&nbsp;
@@ -136,6 +146,9 @@ export default class Map extends React.Component {
               }}
             />
           </FeatureGroup>
+          {[ ...this.state.rectangles ].map(([ bbox, label], idx) => {
+            return <Rectangle key={ idx } bounds={[[bbox[1], bbox[0]], [bbox[3], bbox[2]]]} color={ label ? this.shapeOptions.color : 'red' } />;
+          })}
         </LeafletMap>
       </div>
     );
