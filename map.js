@@ -100,9 +100,13 @@ export default class Map extends React.Component {
   render() {
     return (
       <div>
-        <div style={{ zIndex: 10000, position: 'absolute', left: '60px', top: '16px'}}>
-          <input name="label" type="radio" value="1" onChange={ this.setLabel( 1 ) } checked={ this.state.label === 1 }/>Airplane&nbsp;
-          <input name="label" type="radio" value="0" onChange={ this.setLabel( 0 ) } checked={ this.state.label === 0 }/>Not Airplane
+        <div style={{ zIndex: 10000, position: 'absolute', left: '60px', top: '14px', background: 'rgba(255,255,255,0.3)', padding: '6px', borderRadius: '2px', color: '#111' }}>
+          <label for="label1">
+            <input id="label1" name="label" type="radio" value="1" onChange={ this.setLabel( 1 ) } checked={ this.state.label === 1 }/>Airplane&nbsp;
+          </label>
+          <label for="label0">
+            <input id="label0" name="label" type="radio" value="0" onChange={ this.setLabel( 0 ) } checked={ this.state.label === 0 }/>Not Airplane
+          </label>
         </div>
         <LeafletMap ref="map" center={ [32.175068, -110.851364 ] } zoom={18} { ...this.mapOptions }>
           <TileLayer
