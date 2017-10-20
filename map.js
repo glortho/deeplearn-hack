@@ -20,7 +20,7 @@ export default class MapComponent extends React.Component {
 
   constructor( props ) {
     super( props );
-    this.state = { label: 1, rectangles: new Map() };
+    this.state = { label: 1, predictions: new Set(), rectangles: new Map() };
   }
 
   componentWillMount() {
@@ -138,7 +138,14 @@ export default class MapComponent extends React.Component {
         url += `${this.zoom}/${x}/${y}.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ`;
         const img = new Image()
         img.crossOrigin = "Anonymous"
-        img.onload = () => model.predict( img, x, y );
+        img.onload = () => {
+          const result = model.predict( img, x, y );
+          if ( result ) {
+            this.setState( state => ({
+              predictions: state.predictions.add(merc.bbox(x, y, this.zoom))
+            }));
+          }
+        }
         img.onerror = function(err) {
           console.log('err', err)
         }
@@ -155,7 +162,7 @@ export default class MapComponent extends React.Component {
           <button onClick={() => model.train()}>Train</button>
           <button onClick={ this.predict }>Predict</button>
         </div>
-        <div style={{ zIndex: 10000, position: 'absolute', left: '60px', top: '14px', background: 'rgba(255,255,255,0.3)', padding: '6px', borderRadius: '2px', color: '#111' }}>
+        <div style={{ zIndex: 10000, position: 'absolute', left: '60px', top: '14px', background: 'rgba(255,255,255,0.7)', padding: '6px', borderRadius: '2px', color: '#111' }}>
           <label>
             <input name="label" type="radio" value="1" onChange={ this.setLabel( 1 ) } checked={ this.state.label === 1 }/>Airplane&nbsp;
           </label>
@@ -198,6 +205,11 @@ export default class MapComponent extends React.Component {
                 </Popup>
               </Rectangle>
             );
+          })}
+          {[ ...this.state.predictions ].map((bbox, idx ) => {
+            return (
+              <Rectangle key={ idx } bounds={[[bbox[1], bbox[0]], [bbox[3], bbox[2]]]} color="blue"/>
+            )
           })}
         </LeafletMap>
       </div>

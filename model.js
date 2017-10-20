@@ -29,7 +29,7 @@ class Model {
   optimizer;
 
   // Each training batch will be on this many examples.
-  batchSize = 500;
+  batchSize = 100;
 
   inputTensor;
   targetTensor;
@@ -160,7 +160,7 @@ class Model {
 
 
   predict( img, x, y ) {
-    let values = [];
+    let values = false;
     this.math.scope((keep, track) => {
       const canvas = document.createElement('canvas')
       canvas.width = img.width
@@ -198,8 +198,10 @@ class Model {
             data: Array1D.new(inference),
           }];
           const evalOutput = this.session.eval(this.predictionTensor, mapping);
-          values = evalOutput.getValues();
-          console.log('PREDICT VAL', values[0], inference);
+          const evals = evalOutput.getValues();
+          const keyMatch = [421,904,905,752].reduce((match, key) => ~inference.indexOf(key) ? match + 1 : match, 0);
+          if ( keyMatch === 3 ) values = {maxY, maxX, minY, minX};
+          console.log('PREDICT VAL', values[0], inference, 'KEY MATCH:', keyMatch);
         }
       }
     });
