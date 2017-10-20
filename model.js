@@ -9,7 +9,7 @@ const merc = new SphericalMercator({
   size: 256
 });
 
-import {Array3D, Array1D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor, Scalar} from 'deeplearn';
+import {GPGPUContext, gpgpu_util, Array3D, Array1D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder, NDArrayMath, NDArrayMathGPU, Session, SGDOptimizer, Tensor, Scalar} from 'deeplearn';
 
 import {
   addTraining as addTrainingToDb,
@@ -29,7 +29,7 @@ class Model {
   optimizer;
 
   // Each training batch will be on this many examples.
-  batchSize = 300;
+  batchSize = 500;
 
   inputTensor;
   targetTensor;
@@ -39,7 +39,7 @@ class Model {
   // Maps tensors to InputProviders.
   feedEntries;
 
-  inputSize = 3;
+  inputSize = 3
 
   constructor() {
     this.optimizer = new SGDOptimizer(this.initialLearningRate);
@@ -49,8 +49,9 @@ class Model {
    * Constructs the graph of the model. Call this method before training.
    */
   setupSession() {
-
-    this.squeezeNet = new SqueezeNet(this.math);
+    this.gl = gpgpu_util.createWebGLContext();
+    this.gpgpu = new GPGPUContext(this.gl);
+    this.squeezeNet = new SqueezeNet(this.math, this.gpgpu);
     this.squeezeNet.loadVariables().then(() => {
       this.math.scope(() => {
         const warmup = Array3D.randNormal( [227, 227, 3] );
@@ -97,15 +98,15 @@ class Model {
     //this.generateTrainingData();
   }
 
-  unpack_flat = (view) => { 
+  unpack_flat = (view) => {
     const arr = unpack(view)
       .reduce((master, row) => master.concat( [ ...row ] ), [] );
-    return arr;
-    /*if ( arr.length < this.inputSize ) {
-      return arr.concat( Array( this.inputSize - arr.length ).fill( 0 ) );
-    } else {
-      return arr.slice(0, this.inputSize );
-    }*/
+    //return arr;
+    const size = ( 227 * 227 * 3) / 3;
+    const arrNew = arr.length < size
+      ? arr.concat( Array( size - arr.length ).fill( 0 ) )
+      : arr.slice(0, size);
+    return arrNew;
   }
 
   tilePx = (lat, lon, tile_bbox) => {
@@ -209,60 +210,109 @@ class Model {
       const minXY = this.tilePx(bbox[3], bbox[0], tile_bbox);
       const maxXY = this.tilePx(bbox[1], bbox[2], tile_bbox);
 
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
-      const context = canvas.getContext('2d')
-      context.drawImage(img, 0, 0)
-      const pixels = context.getImageData(0, 0, img.width, img.height);
+      if ( (maxXY[1] - minXY[1]) > 0 && ( maxXY[0] - minXY[0] ) > 0 ) {
 
-      const arr = ndarray(new Uint8Array(pixels.data), [img.width, img.height, 4], [4*img.width, 4, 1], 0);
-      const clipped = arr
-        .hi(227, 227)
-      //imshow(clipped)
+        const miny = minXY[1];
+        const minx = minXY[0];
+        const maxy = maxXY[1];
+        const maxx = maxXY[0];
 
-      const _red = this.unpack_flat(clipped.pick(null, null, 0));
-      const _green = this.unpack_flat(clipped.pick(null, null, 1));
-      const _blue = this.unpack_flat(clipped.pick(null, null, 2));
-      const rgb = [..._red, ..._green, ..._blue];
+        const canvas = document.createElement('canvas')
+        //img.width = img.width >= 227 ? img.width - ( img.width - 227 ) : img.width + ( 227 - img.width );
+        //img.height = img.height >= 227 ? img.height - ( img.height - 227 ) : img.height + ( 227 - img.height );
+        canvas.width = img.width
+        canvas.height = img.height
+        const context = canvas.getContext('2d')
+        context.drawImage(img, 0, 0)
+        const pixels = context.getImageData(0, 0, img.width, img.height);
 
-      const inference = this.infer(Array3D.new([227,227,3], rgb))
-      console.log('Inference', inference, label);
+        const arr = ndarray(new Uint8Array(pixels.data), [img.width, img.height, 4], [4*img.width, 4, 1], 0);
 
-      if ( options.addToDb ) addTrainingToDb( { bbox, x, y, label, inference } );
+        const clip = arr
+          .hi(maxy, maxx)
+          .lo(miny, minx)
 
-      this.inputArray.push(
-        Array1D.new( inference ),
-        Array1D.new( inference.map( v => Math.random() * v ) ),
-        Array1D.new( inference.map( v => Math.random() * v ) ),
-        Array1D.new( inference.map( v => Math.random() * v ) ),
-        Array1D.new( inference.map( v => Math.random() * v ) ),
-        Array1D.new( inference.map( v => Math.random() * v ) ),
-        Array1D.new( inference.map( v => Math.random() * v ) )
-        
-      );
-      this.targetArray.push(
-        Array1D.new( [ label ] ),
-        Array1D.new( [ label ] ),
-        Array1D.new( [ label ] ),
-        Array1D.new( [ label ] ),
-        Array1D.new( [ label ] ),
-        Array1D.new( [ label ] ),
-        Array1D.new( [ label ] )
-      );
+        const red = this.unpack_flat(clip.pick(null, null, 0));
+        const green = this.unpack_flat(clip.pick(null, null, 1));
+        const blue = this.unpack_flat(clip.pick(null, null, 2));
+        const rgb = [...red, ...green, ...blue];
 
-      const shuffledInputProviderBuilder =
-        new InCPUMemoryShuffledInputProviderBuilder(
-          [this.inputArray, this.targetArray]);
-      const [inputProvider, targetProvider] =
-        shuffledInputProviderBuilder.getInputProviders();
 
-      // Maps tensors to InputProviders.
-      this.feedEntries = [
-        {tensor: this.inputTensor, data: inputProvider},
-        {tensor: this.targetTensor, data: targetProvider}
-      ];
-        
+        // SqueezeNet
+        //const flat = this.unpack_flat(clip);
+        //console.log(Array3D.new([227,227,3], ));
+
+        imshow(clip)
+
+        const inference = this.infer(Array3D.new([227,227,3], rgb))
+        console.log('Inference', inference, label);
+
+        if ( options.addToDb ) addTrainingToDb( { bbox, x, y, label, inference } );
+
+        //this.inputArray.push(
+        //Array1D.new( red ),
+        //Array1D.new( green ),
+        //Array1D.new( blue )
+        //);
+        //this.targetArray.push(
+        //Array1D.new( [ label ] ),
+        //Array1D.new( [ label ] ),
+        //Array1D.new( [ label ] )
+        //);
+        for ( let i = 0; i<100; i++) {
+          this.inputArray.push(
+            Array1D.new( inference )
+          );
+          this.targetArray.push(
+            Array1D.new( [ label + ( i % 2 ) * ( ~String(i).indexOf( 2 ) ? -0.1 : 0.1 ) ] )
+          );
+        }
+
+        const shuffledInputProviderBuilder =
+          new InCPUMemoryShuffledInputProviderBuilder(
+            [this.inputArray, this.targetArray]);
+        const [inputProvider, targetProvider] =
+          shuffledInputProviderBuilder.getInputProviders();
+
+        // Maps tensors to InputProviders.
+        this.feedEntries = [
+          {tensor: this.inputTensor, data: inputProvider},
+          {tensor: this.targetTensor, data: targetProvider}
+        ];
+        //const clipped = arr
+        //.hi(253, 253)
+        ////imshow(clipped)
+
+        //const _red = this.unpack_flat(clipped.pick(null, null, 0));
+        //const _green = this.unpack_flat(clipped.pick(null, null, 1));
+        //const _blue = this.unpack_flat(clipped.pick(null, null, 2));
+        //const rgb = [..._red, ..._green, ..._blue];
+
+        //const inference = this.infer(Array3D.new([227,227,3], rgb))
+        //console.log('Inference', inference, label);
+
+        //if ( options.addToDb ) addTrainingToDb( { bbox, x, y, label, inference } );
+      }
+
+      //this.inputArray.push(
+        //Array1D.new( inference )
+      //);
+      //this.targetArray.push(
+        //Array1D.new( [ label ] )
+      //);
+
+      //const shuffledInputProviderBuilder =
+        //new InCPUMemoryShuffledInputProviderBuilder(
+          //[this.inputArray, this.targetArray]);
+      //const [inputProvider, targetProvider] =
+        //shuffledInputProviderBuilder.getInputProviders();
+
+      //// Maps tensors to InputProviders.
+      //this.feedEntries = [
+        //{tensor: this.inputTensor, data: inputProvider},
+        //{tensor: this.targetTensor, data: targetProvider}
+      //];
+
 
       /*if ( (maxXY[1] - minXY[1]) > 0 && ( maxXY[0] - minXY[0] ) > 0 ) {
         const miny = minXY[1];
@@ -284,15 +334,15 @@ class Model {
 
         imshow(clip)
 
-        this.inputArray.push( 
-          Array1D.new( red ), 
+        this.inputArray.push(
+          Array1D.new( red ),
           Array1D.new( green ),
-          Array1D.new( blue ) 
+          Array1D.new( blue )
         );
-        this.targetArray.push( 
-          Array1D.new( [ label ] ), 
+        this.targetArray.push(
           Array1D.new( [ label ] ),
-          Array1D.new( [ label ] ) 
+          Array1D.new( [ label ] ),
+          Array1D.new( [ label ] )
         );
 
         const shuffledInputProviderBuilder =
@@ -308,17 +358,18 @@ class Model {
         ];
       }*/
     });
-
   }
 
   feed( { inference, label } ) {
     console.log(inference, label)
-    this.inputArray.push(
-        Array1D.new( inference )
-    );
-    this.targetArray.push(
-      Array1D.new( [ label ] )
-    );
+    for (let i = 0; i<1000; i++) {
+      this.inputArray.push(
+          Array1D.new( inference )
+      );
+      this.targetArray.push(
+        Array1D.new( [ label ] )
+      );
+    }
 
     const shuffledInputProviderBuilder =
       new InCPUMemoryShuffledInputProviderBuilder(
@@ -331,7 +382,7 @@ class Model {
       {tensor: this.inputTensor, data: inputProvider},
       {tensor: this.targetTensor, data: targetProvider}
     ];
-  } 
+  }
 
   generateTrainingData() {
     this.math.scope(() => {
@@ -382,8 +433,7 @@ class Model {
     const localStepsToRun = 5;
     let cost;
     for (let i = 0; i < localStepsToRun; i++) {
-      //cost = model.train1Batch(i === localStepsToRun - 1);
-      cost = model.train1Batch(this.step, i === localStepsToRun - 1);
+      cost = model.train1Batch(i === localStepsToRun - 1);
       this.step++;
     }
 

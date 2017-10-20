@@ -20,18 +20,18 @@ import { CheckpointLoader, NDArray, NDArrayMathCPU } from 'deeplearn';
 import * as imagenet_classes from './imagenet_classes';
 import * as imagenet_util from './imagenet_util';
 
-const IMAGE_SIZE = 256; 
+const IMAGE_SIZE = 227;
 const GOOGLE_CLOUD_STORAGE_DIR =
     'https://storage.googleapis.com/learnjs-data/checkpoint_zoo/';
 
 class SqueezeNet {
 
-  constructor( math ) { //, useFloatTextures) {
+  constructor( math, gpgpu, useFloatTextures = true) {
     this.math = math;
-    //this.gpgpu = gpgpu;
-    //this.preprocessInputShader =
-    //    imagenet_util.getUnpackAndPreprocessInputShader(
-    //        gpgpu, [IMAGE_SIZE, IMAGE_SIZE], useFloatTextures);
+    this.gpgpu = gpgpu;
+    this.preprocessInputShader =
+        imagenet_util.getUnpackAndPreprocessInputShader(
+            gpgpu, [IMAGE_SIZE, IMAGE_SIZE], useFloatTextures);
   }
 
   /**
