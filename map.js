@@ -39,7 +39,8 @@ export default class MapComponent extends React.Component {
         this.setState( state => ({
           rectangles: state.rectangles.set( key.bbox, label )
         }));
-        this.fetchImg( key, label, { addToDb: false } )
+        //this.fetchImg( key, label, { addToDb: false } )
+        model.feed( { ...key, label } );
       })
     );
   }
@@ -127,12 +128,32 @@ export default class MapComponent extends React.Component {
 
   setLabel = label => () => this.setState({ label });
 
+  predict = (e) => {
+    const bounds = this.refs.map.leafletElement.getBounds().toBBoxString().split(',').map( c => parseFloat(c) );
+    const {minX, minY, maxX, maxY } = merc.xyz(bounds, this.zoom);
+    for ( let x=minX; x < maxX + 1; x++ ) {
+      for ( let y=minY; y < maxY + 1; y++ ) {
+        //console.log(x,y)
+        let url = 'https://a.tiles.mapbox.com/v4/mapbox.streets-satellite/';
+        url += `${this.zoom}/${x}/${y}.png?access_token=pk.eyJ1IjoiY2hlbG0iLCJhIjoiY2lyNjk0dnJiMDAyNGk5bmZnMTk4dDNnaiJ9.BSE3U0yfeyD6jtSf4t8xzQ`;
+        const img = new Image()
+        img.crossOrigin = "Anonymous"
+        img.onload = () => model.predict( img, x, y );
+        img.onerror = function(err) {
+          console.log('err', err)
+        }
+        img.src = url
+      }
+    }
+  };
+
   render() {
     return (
       <div>
         <div style={{ zIndex: 10000, position: 'absolute', top: '14px', right: '10px'}}>
           <button onClick={ this.clearAll }>Clear All</button>&nbsp;
           <button onClick={() => model.train()}>Train</button>
+          <button onClick={ this.predict }>Predict</button>
         </div>
         <div style={{ zIndex: 10000, position: 'absolute', left: '60px', top: '14px', background: 'rgba(255,255,255,0.3)', padding: '6px', borderRadius: '2px', color: '#111' }}>
           <label>

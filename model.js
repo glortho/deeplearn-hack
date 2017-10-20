@@ -25,7 +25,7 @@ class Model {
   math = new NDArrayMathGPU();
 
   // An optimizer with a certain initial learning rate. Used for training.
-  initialLearningRate = 0.042;
+  initialLearningRate = 0.0042;
   optimizer;
 
   // Each training batch will be on this many examples.
@@ -79,15 +79,14 @@ class Model {
     fullyConnectedLayer =
         this.createFullyConnectedLayer(graph, fullyConnectedLayer, 2, 16);
 
-    fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 3, 8);
-    
     this.predictionTensor =
         this.createFullyConnectedLayer(graph, fullyConnectedLayer, 4, 1);
 
     // We will optimize using mean squared loss.
     this.costTensor =
         graph.meanSquaredCost(this.targetTensor, this.predictionTensor);
+
+    this.graph = graph;
 
     // Create the session only after constructing the graph.
     this.session = new Session(graph, this.math);
@@ -158,17 +157,36 @@ class Model {
     return costValue;
   }
 
-  predict(arr) {
+
+  predict( img, x, y ) {
     let values = [];
     this.math.scope((keep, track) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const context = canvas.getContext('2d')
+      context.drawImage(img, 0, 0)
+      const pixels = context.getImageData(0, 0, img.width, img.height);
+
+      const arr = ndarray(new Uint8Array(pixels.data), [img.width, img.height, 4], [4*img.width, 4, 1], 0);
+      const clipped = arr
+        .hi(227, 227)
+
+      const _red = this.unpack_flat(clipped.pick(null, null, 0));
+      const _green = this.unpack_flat(clipped.pick(null, null, 1));
+      const _blue = this.unpack_flat(clipped.pick(null, null, 2));
+      const rgb = [..._red, ..._green, ..._blue];
+
+      const inference = this.infer(Array3D.new([227,227,3], rgb))
+      console.log('Inference', inference);
+
       const mapping = [{
         tensor: this.inputTensor,
-        data: Array1D.new(arr),
+        data: Array1D.new(inference),
       }];
       const evalOutput = this.session.eval(this.predictionTensor, mapping);
-      console.log(evalOutput.getValues(), Array.prototype.slice.call(evalOutput.getValues()));
       values = evalOutput.getValues();
-
+      console.log('PREDICT VAL', values[0], inference);
     });
     return values;
   }
@@ -178,7 +196,7 @@ class Model {
       sizeOfThisLayer) {
     return graph.layers.dense(
         'fully_connected_' + layerIndex, inputLayer, sizeOfThisLayer,
-        (x) => graph.relu(x));
+        (x) => graph.relu(x), false);
   }
 
   /**
@@ -187,7 +205,6 @@ class Model {
    */
   addTraining({ bbox, x, y, img, label, options = { addToDb: true } }) {
     this.math.scope(() => {
-      if ( options.addToDb ) addTrainingToDb({ bbox, x, y, label });
       const tile_bbox = merc.bbox(x, y, 18);
       const minXY = this.tilePx(bbox[3], bbox[0], tile_bbox);
       const maxXY = this.tilePx(bbox[1], bbox[2], tile_bbox);
@@ -212,7 +229,7 @@ class Model {
       const inference = this.infer(Array3D.new([227,227,3], rgb))
       console.log('Inference', inference, label);
 
-      //console.log( this.math.add( Scalar.new([Math.random()]), Array1D.new( inference ) ) );
+      if ( options.addToDb ) addTrainingToDb( { bbox, x, y, label, inference } );
 
       this.inputArray.push(
         Array1D.new( inference ),
@@ -293,6 +310,28 @@ class Model {
     });
 
   }
+
+  feed( { inference, label } ) {
+    console.log(inference, label)
+    this.inputArray.push(
+        Array1D.new( inference )
+    );
+    this.targetArray.push(
+      Array1D.new( [ label ] )
+    );
+
+    const shuffledInputProviderBuilder =
+      new InCPUMemoryShuffledInputProviderBuilder(
+        [this.inputArray, this.targetArray]);
+    const [inputProvider, targetProvider] =
+      shuffledInputProviderBuilder.getInputProviders();
+
+    // Maps tensors to InputProviders.
+    this.feedEntries = [
+      {tensor: this.inputTensor, data: inputProvider},
+      {tensor: this.targetTensor, data: targetProvider}
+    ];
+  } 
 
   generateTrainingData() {
     this.math.scope(() => {
