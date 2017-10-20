@@ -172,6 +172,22 @@ class Model {
       const clipped = arr
         .hi(227, 227)
 
+      for ( let x=0; x < 4; x++ ) {
+        for ( let y=0; y < 4; y++ ) {
+          const minX = x * 64;
+          const maxX = minX + 64;
+          const minY = x * 64;
+          const maxY = minY + 64;
+          console.log(minX, maxX, minY, maxY)
+          const clip = arr
+            .hi(maxY, maxX)
+            .lo(minY, minY)
+          console.log(clip)
+          //const clipped = arr
+          //  .hi(227, 227)
+        }
+      }
+
       const _red = this.unpack_flat(clipped.pick(null, null, 0));
       const _green = this.unpack_flat(clipped.pick(null, null, 1));
       const _blue = this.unpack_flat(clipped.pick(null, null, 2));
