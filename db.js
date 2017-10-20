@@ -7,12 +7,12 @@ localforage.config({
 });
 
 export const addTraining = ({ bbox, x, y, label, inference }) =>
-  localforage.setItem( JSON.stringify({ bbox, x, y, inference }), label );
+  localforage.setItem( JSON.stringify({ bbox, x, y }), { inference, label });
 
 export const getTrainingData = () => new Promise( resolve => {
   const map = new Map();
-  localforage.iterate(( label, key ) => {
-    map.set( JSON.parse( key ), label );
+  localforage.iterate(( val, key ) => {
+    map.set( JSON.parse( key ), val );
   } , () => resolve( map ));
 });
 

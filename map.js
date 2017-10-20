@@ -35,12 +35,12 @@ export default class MapComponent extends React.Component {
     document.getElementsByTagName("head")[0].appendChild(link);
 
     getTrainingData().then( data =>
-      data.forEach((label, key) => {
+      data.forEach((val, key) => {
         this.setState( state => ({
-          rectangles: state.rectangles.set( key.bbox, label )
+          rectangles: state.rectangles.set( key.bbox, val.label )
         }));
         //this.fetchImg( key, label, { addToDb: false } )
-        model.feed( { ...key, label } );
+        model.feed( { ...key, ...val } );
       })
     );
   }
