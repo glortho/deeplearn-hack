@@ -170,40 +170,38 @@ class Model {
       const pixels = context.getImageData(0, 0, img.width, img.height);
 
       const arr = ndarray(new Uint8Array(pixels.data), [img.width, img.height, 4], [4*img.width, 4, 1], 0);
-      const clipped = arr
-        .hi(227, 227)
+      //const clip = arr
+      //  .hi(227, 227)
 
-      for ( let x=0; x < 4; x++ ) {
-        for ( let y=0; y < 4; y++ ) {
-          const minX = x * 64;
+      for ( let xs=0; xs < 4; xs++ ) {
+        for ( let ys=0; ys < 4; ys++ ) {
+          const minX = xs * 64;
           const maxX = minX + 64;
-          const minY = x * 64;
+          const minY = ys * 64;
           const maxY = minY + 64;
-          console.log(minX, maxX, minY, maxY)
           const clip = arr
             .hi(maxY, maxX)
-            .lo(minY, minY)
-          console.log(clip)
-          //const clipped = arr
-          //  .hi(227, 227)
+            .lo(minY, minX)
+
+          //console.log(clip.shape)
+          imshow(clip)
+
+          const _red = this.unpack_flat(clip.pick(null, null, 0));
+          const _green = this.unpack_flat(clip.pick(null, null, 1));
+          const _blue = this.unpack_flat(clip.pick(null, null, 2));
+          const rgb = [..._red, ..._green, ..._blue];
+
+          const inference = this.infer(Array3D.new([227,227,3], rgb))
+
+          const mapping = [{
+            tensor: this.inputTensor,
+            data: Array1D.new(inference),
+          }];
+          const evalOutput = this.session.eval(this.predictionTensor, mapping);
+          values = evalOutput.getValues();
+          console.log('PREDICT VAL', values[0], inference);
         }
       }
-
-      const _red = this.unpack_flat(clipped.pick(null, null, 0));
-      const _green = this.unpack_flat(clipped.pick(null, null, 1));
-      const _blue = this.unpack_flat(clipped.pick(null, null, 2));
-      const rgb = [..._red, ..._green, ..._blue];
-
-      const inference = this.infer(Array3D.new([227,227,3], rgb))
-      console.log('Inference', inference);
-
-      const mapping = [{
-        tensor: this.inputTensor,
-        data: Array1D.new(inference),
-      }];
-      const evalOutput = this.session.eval(this.predictionTensor, mapping);
-      values = evalOutput.getValues();
-      console.log('PREDICT VAL', values[0], inference);
     });
     return values;
   }
