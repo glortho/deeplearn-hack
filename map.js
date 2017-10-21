@@ -47,7 +47,7 @@ export default class MapComponent extends React.Component {
 
   clearAll = () => {
     model.clear();
-    this.setState( state => ({ rectangles: new Map() }));
+    this.setState( state => ({ predictions: new Set(), rectangles: new Map() }));
   }
 
   fetchImg = ({ bbox, x, y }, label, options) => {
