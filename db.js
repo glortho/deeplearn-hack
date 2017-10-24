@@ -6,8 +6,8 @@ localforage.config({
   storeName: 'training_data' // Should be alphanumeric, with underscores.
 });
 
-export const addTraining = ({ bbox, x, y, label, inference }) =>
-  localforage.setItem( JSON.stringify({ bbox, x, y }), { inference, label });
+export const addTraining = ({ bbox, x, y, label }) =>
+  localforage.setItem( JSON.stringify({ bbox, x, y }), { label });
 
 export const getTrainingData = () => new Promise( resolve => {
   const map = new Map();

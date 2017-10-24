@@ -3,7 +3,7 @@ import { EditControl } from 'react-leaflet-draw';
 import React from 'react';
 import ndarray from 'ndarray';
 import imshow from 'ndarray-imshow';
-import SphericalMercator from 'sphericalmercator';
+import SphericalMercator from '@mapbox/sphericalmercator';
 import unpack from 'ndarray-unpack';
 import { getTrainingData, removeTraining } from './db';
 
@@ -39,8 +39,8 @@ export default class MapComponent extends React.Component {
         this.setState( state => ({
           rectangles: state.rectangles.set( key.bbox, val.label )
         }));
-        //this.fetchImg( key, label, { addToDb: false } )
-        model.feed( { ...key, ...val } );
+        this.fetchImg( key, val.label, { addToDb: false } )
+        //model.feed( { ...key, ...val } );
       })
     );
   }
